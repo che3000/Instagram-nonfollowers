@@ -13,6 +13,7 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 輸出與 session 會在 `./data`。
+
 **non_followers.csv** 為你追蹤但回追的人，檔案內包含 Insatgram ID、Instagram用戶名稱、Instagram連結。
 
 **fans_you_dont_follow.csv** 為追蹤你但你沒有回追的人，檔案內包含 Instagram ID、Instagram用戶名稱、Instagram連結。
