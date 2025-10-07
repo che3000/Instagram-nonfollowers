@@ -118,7 +118,7 @@ def ensure_session(l: Instaloader) -> tuple[str, str]:
         except exceptions.LoginException as e:
             # 常見：'fail'（空訊息）、'challenge'、'checkpoint'
             msg = (str(e) or "").lower()
-            print(f"[WARN] 登入被 IG 擋下：{e}", flush=True)
+            print(f"[WARN] 登入被 Meta 擋下：{e}", flush=True)
             if any(k in msg for k in ("challenge", "checkpoint", "fail")):
                 print(
                     "密碼錯誤或活動被攔截，請在 App 允許/再試一次。\n"
