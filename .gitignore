@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Instaloader session & cache
+session-*
+.instaloader/
+Instaloader/
+**/session-*
+
+# Local outputs
+*.csv
+*.txt
+output/
+downloads/
+data/
+
+# Docker / build artifacts
+/dist/
+/build/
+*.spec
+
+# OS / Editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

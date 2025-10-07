@@ -1,0 +1,235 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+IG Non-Followers – 互動版（含登入自動重試，CSV 含 full_name）
+- 互動式詢問帳號 / 密碼（不顯示），若需要 備用驗證碼 會再詢問。
+- 登入被 IG 擋下（fail / challenge / checkpoint）時，提示你到 App 允許，按 Enter 直接重試。
+- Session 與 CSV 儲存在 data/（或 /app/data）。
+- 進度條 + 節流/連線重試。
+- CSV 欄位：username, full_name, profile_url
+"""
+from __future__ import annotations
+import os
+import sys
+import csv
+import time
+import getpass
+import traceback
+from typing import Iterable, List, Tuple, Set, Optional
+
+from instaloader import Instaloader, Profile, exceptions
+from tqdm import tqdm
+
+# === 可調參數 ===
+PROGRESS_STEP = 1
+RATE_LIMIT_SLEEP = 90
+CONNECTION_MAX_RETRIES = 5
+OUTPUT_NON_FOLLOWERS = "non_followers.csv"
+OUTPUT_FANS_NOT_FOLLOWED = "fans_you_dont_follow.csv"
+
+
+def is_tty() -> bool:
+    try:
+        return sys.stdin.isatty()
+    except Exception:
+        return False
+
+
+def get_project_root() -> str:
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def resolve_data_dir() -> str:
+    """優先 /app/data（Docker 掛載），其次 ./data，否則建立 ./data。"""
+    candidates = ["/app/data", os.path.join(get_project_root(), "data")]
+    for p in candidates:
+        if os.path.isdir(p):
+            return p
+    p = os.path.join(get_project_root(), "data")
+    os.makedirs(p, exist_ok=True)
+    return p
+
+
+def session_path_for(username: str, data_dir: str) -> str:
+    return os.path.join(data_dir, f"session-{username}")
+
+
+def ensure_session(l: Instaloader) -> tuple[str, str]:
+    """
+    互動式建立或載入 session（含登入自動重試）。
+    回傳: (username, data_dir)
+    """
+    if not is_tty():
+        print(
+            "[ERROR] 目前不是互動式終端機，無法輸入帳密。\n"
+            "請使用：docker compose run --rm --build ig-nonfollowers  或  docker run -it ...",
+            flush=True
+        )
+        sys.exit(1)
+
+    print("=== IG Non-Followers (interactive, auto-retry) ===", flush=True)
+
+    username = input("Instagram 使用者名稱：").strip()
+    if not username:
+        print("[ERROR] 使用者名稱不可空白。", flush=True)
+        sys.exit(1)
+
+    data_dir = resolve_data_dir()
+    sess_path = session_path_for(username, data_dir)
+
+    # 已有 session → 直接載入
+    if os.path.exists(sess_path):
+        l.load_session_from_file(username, sess_path)
+        print(f"[OK] 已載入 session：{sess_path}", flush=True)
+        return username, data_dir
+
+    # 無 session → 登入流程（自動重試）
+    while True:
+        print("[INFO] 首次使用：將建立新 session（之後免輸密碼）。", flush=True)
+        password = getpass.getpass("Instagram 密碼（輸入不會顯示）：")
+
+        try:
+            l.login(username, password)
+            os.makedirs(data_dir, exist_ok=True)
+            l.save_session_to_file(sess_path)
+            print(f"[OK] 已登入並儲存 session：{sess_path}", flush=True)
+            return username, data_dir
+
+        except exceptions.TwoFactorAuthRequiredException:
+            # 2FA 最多 3 次（依你的指示，引導使用備用驗證碼）
+            for attempt in range(1, 4):
+                print(
+                    "\n需要 2FA 打開Instagram → 右下角頭貼 → 右上角三條線 → 帳號管理中心 → 密碼和帳號安全\n"
+                    "→ 雙重驗證 → Instagram → 其他方式 → 備用驗證碼 → 選一組輸入（中間不需空格）",
+                    flush=True
+                )
+                code = input(f"請輸入備用驗證碼（第 {attempt}/3 次）：").strip()
+                try:
+                    l.two_factor_login(code)
+                    os.makedirs(data_dir, exist_ok=True)
+                    l.save_session_to_file(sess_path)
+                    print(f"[OK] 2FA 成功，已儲存 session：{sess_path}", flush=True)
+                    return username, data_dir
+                except exceptions.LoginException as e2:
+                    print(f"[WARN] 2FA 驗證失敗：{e2}", flush=True)
+            print("[ERROR] 2FA 多次失敗，請稍後再試。", flush=True)
+            sys.exit(1)
+
+        except exceptions.LoginException as e:
+            # 常見：'fail'（空訊息）、'challenge'、'checkpoint'
+            msg = (str(e) or "").lower()
+            print(f"[WARN] 登入被 IG 擋下：{e}", flush=True)
+            if any(k in msg for k in ("challenge", "checkpoint", "fail")):
+                print(
+                    "密碼錯誤或活動被攔截，請在 App 允許/再試一次。\n"
+                    "允許或確認後，按 Enter 重試（或輸入 q 離開）。",
+                    flush=True
+                )
+                resp = input("繼續？(Enter 重試 / q 離開) ").strip().lower()
+                if resp == "q":
+                    sys.exit(1)
+                time.sleep(5)
+                continue
+            else:
+                print("[ERROR] 非預期的登入錯誤，無法自動處理。", flush=True)
+                sys.exit(1)
+
+
+def fetch_users_with_progress(it: Iterable, total: Optional[int], label: str) -> List[Tuple[str, str]]:
+    """
+    逐步迭代名單，顯示進度條，並回傳 [(username, full_name)]。
+    """
+    users: List[Tuple[str, str]] = []
+    pbar = tqdm(total=total, desc=label, unit="user")
+
+    iterator = iter(it)
+    retry = 0
+    while True:
+        try:
+            user = next(iterator)
+            users.append((user.username, (user.full_name or "")))
+            pbar.update(PROGRESS_STEP)
+            retry = 0
+        except StopIteration:
+            break
+        except exceptions.TooManyRequestsException:
+            pbar.set_postfix_str("rate-limited; sleeping…")
+            time.sleep(RATE_LIMIT_SLEEP)
+            continue
+        except exceptions.ConnectionException as e:
+            if retry < CONNECTION_MAX_RETRIES:
+                wait = min(60, 2 ** retry * 3)
+                pbar.set_postfix_str(f"conn err; retry in {wait}s")
+                time.sleep(wait)
+                retry += 1
+                continue
+            else:
+                pbar.close()
+                raise RuntimeError(f"Reach max retries due to connection errors: {e}")
+        except Exception as e:
+            pbar.close()
+            raise e
+
+    pbar.close()
+    return users
+
+
+def write_csv(path: str, rows: Iterable[Tuple[str, str]]) -> None:
+    # 重點：用 utf-8-sig（含 BOM）讓 Windows Excel 正確辨識中文
+    with open(path, "w", newline="", encoding="utf-8-sig", errors="replace") as f:
+        w = csv.writer(f)
+        w.writerow(["username", "full_name", "profile_url"])
+        for username, full_name in rows:
+            w.writerow([username, full_name, f"https://instagram.com/{username}"])
+
+
+def main() -> None:
+    L = Instaloader()
+    L.context.sleep = True
+    L.context.request_timeout = 90
+
+    username, data_dir = ensure_session(L)
+    profile = Profile.from_username(L.context, username)
+
+    total_following = getattr(profile, "followees", None)
+    total_followers = getattr(profile, "followers", None)
+
+    print("[1/4] 取得 following（你追的人）…", flush=True)
+    following_users = fetch_users_with_progress(profile.get_followees(), total_following, "following")
+
+    print("[2/4] 取得 followers（追你的人）…", flush=True)
+    followers_users = fetch_users_with_progress(profile.get_followers(), total_followers, "followers")
+
+    print("[3/4] 計算集合差集…", flush=True)
+    following_usernames: Set[str] = {u for u, _ in following_users}
+    followers_usernames: Set[str] = {u for u, _ in followers_users}
+
+    # 你追但對方沒回追
+    non_followers = [(u, n) for (u, n) in following_users if u not in followers_usernames]
+    # 對方追你但你沒回追
+    fans_you_dont_follow = [(u, n) for (u, n) in followers_users if u not in following_usernames]
+
+    nf_path = os.path.join(data_dir, OUTPUT_NON_FOLLOWERS)
+    fnf_path = os.path.join(data_dir, OUTPUT_FANS_NOT_FOLLOWED)
+
+    print("[4/4] 輸出 CSV…", flush=True)
+    write_csv(nf_path, non_followers)
+    write_csv(fnf_path, fans_you_dont_follow)
+
+    print("\n=== 完成！===", flush=True)
+    print(f"使用者：{username}", flush=True)
+    print(f"following 總數：{len(following_usernames)}", flush=True)
+    print(f"followers 總數：{len(followers_usernames)}", flush=True)
+    print(f"你追但沒回追：{len(non_followers)} → {nf_path}", flush=True)
+    print(f"他人追你但你沒回追：{len(fans_you_dont_follow)} → {fnf_path}", flush=True)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n[INFO] 使用者中斷。", flush=True)
+    except Exception as e:
+        print("\n[ERROR] 發生未預期錯誤：", e, flush=True)
+        traceback.print_exc()
+        sys.exit(1)

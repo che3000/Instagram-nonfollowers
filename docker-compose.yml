@@ -1,0 +1,9 @@
+services:
+  ig-nonfollowers:
+    build: .
+    image: ig-nonfollowers:latest
+    container_name: ig-nonfollowers
+    volumes:
+      - ./data:/app/data
+    stdin_open: true
+    tty: true
