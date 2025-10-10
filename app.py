@@ -1775,11 +1775,15 @@ def stream():
                         # 密碼錯誤 → 解鎖表單讓使用者重填
                         yield sse("UNLOCK_FORM")
                         yield sse("ERROR:密碼錯誤，請重新輸入。")
-                        yield log_emit(f"[ERROR] 密碼錯誤：{e}")
+                        # Log the detailed error only to the server for debugging
+                        print(f"[ERROR] 密碼錯誤詳細資訊: {e}", flush=True)
+                        yield log_emit("[ERROR] 密碼錯誤")
                         return
                     except exceptions.LoginException as e:
                         msg = (str(e) or "").lower()
-                        yield log_emit(f"[WARN] 登入被 IG 擋下：{e}")
+                        # Log the detailed error only to the server for debugging
+                        print(f"[WARN] 登入被 IG 擋下詳細資訊: {e}", flush=True)
+                        yield log_emit("[WARN] 登入被 IG 擋下")
                         if any(k in msg for k in ("challenge", "checkpoint", "fail")):
                             # 解鎖表單讓使用者重新輸入
                             yield sse("UNLOCK_FORM")
@@ -1790,7 +1794,9 @@ def stream():
                             return
                         # 其他狀況視為錯誤 → 解鎖
                         yield sse("UNLOCK_FORM")
-                        yield sse("ERROR:" + str(e))
+                        # Log the detailed error only to the server for debugging
+                        print(f"[ERROR] 其他登入異常詳細資訊: {e}", flush=True)
+                        yield sse("ERROR:發生登入錯誤，請稍後重試或聯絡系統管理員。")
                         return
 
             # 取得 Profile 與名單
