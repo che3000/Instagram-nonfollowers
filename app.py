@@ -1347,8 +1347,8 @@ def read_existing_csv(folder_info: Optional[Dict[str, str]] = None) -> Optional[
         if not abs_result_dir.startswith(DATA_DIR):
             print(f"資料夾越界! {abs_result_dir}")
             return None
-        if not os.path.exists(result_dir):
-            print(f"結果資料夾不存在: {result_dir}")
+        if not os.path.exists(abs_result_dir):
+            print(f"結果資料夾不存在: {abs_result_dir}")
             return None
 
         result: Dict[str, List[Dict[str, str]]] = {
