@@ -22,7 +22,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 echo "[INFO] 建立並啟動命令列容器中..."
-docker compose run --rm ig-cli
+docker compose -f docker/docker-compose.yml run --rm ig-cli
 
 EXIT_CODE=$?
 echo ""

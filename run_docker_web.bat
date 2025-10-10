@@ -27,7 +27,7 @@ REM 在背景啟動瀏覽器（等待 5 秒讓 Docker 容器有時間啟動）
 start /b cmd /c "timeout /t 5 /nobreak > nul && start http://localhost:!PORT!"
 
 REM 啟動 web 服務，使用動態 port
-docker compose up ig-web --build
+docker compose -f docker/docker-compose.yml up ig-web --build
 
 set "CODE=%ERRORLEVEL%"
 echo.

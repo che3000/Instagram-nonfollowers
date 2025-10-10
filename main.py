@@ -55,6 +55,61 @@ def session_path_for(username: str, data_dir: str) -> str:
     return os.path.join(data_dir, f"session-{username}")
 
 
+def find_existing_sessions(data_dir: str) -> List[Tuple[str, str, str]]:
+    """
+    尋找現有的 session 檔案
+    回傳: [(username, session_file, last_used_time)]
+    """
+    sessions = []
+    
+    if not os.path.exists(data_dir):
+        return sessions
+    
+    for filename in os.listdir(data_dir):
+        if filename.startswith("session-") and os.path.isfile(os.path.join(data_dir, filename)):
+            username = filename[8:]  # 移除 "session-" 前綴
+            session_path = os.path.join(data_dir, filename)
+            
+            # 檢查檔案大小，確保不是空檔案
+            if os.path.getsize(session_path) > 0:
+                # 獲取最後修改時間
+                mtime = os.path.getmtime(session_path)
+                last_used = datetime.fromtimestamp(mtime).strftime('%Y年%m月%d日 %H:%M')
+                sessions.append((username, filename, last_used))
+    
+    # 按最後使用時間排序，最新的在前面
+    sessions.sort(key=lambda x: os.path.getmtime(os.path.join(data_dir, x[1])), reverse=True)
+    return sessions
+
+
+def choose_session(sessions: List[Tuple[str, str, str]]) -> Optional[str]:
+    """
+    讓用戶選擇現有的 session
+    回傳: 選中的 username，或 None 表示不使用現有 session
+    """
+    print("\n=== 發現已存在的登入狀態 ===", flush=True)
+    print("0. 不使用現有登入狀態（重新登入）", flush=True)
+    
+    for i, (username, _, last_used) in enumerate(sessions, 1):
+        print(f"{i}. {username} (最後使用：{last_used})", flush=True)
+    
+    while True:
+        try:
+            choice = input(f"\n請選擇 (0-{len(sessions)}): ").strip()
+            if not choice:
+                continue
+                
+            choice_num = int(choice)
+            if choice_num == 0:
+                return None
+            elif 1 <= choice_num <= len(sessions):
+                return sessions[choice_num - 1][0]
+            else:
+                print(f"請輸入 0 到 {len(sessions)} 之間的數字", flush=True)
+        except ValueError:
+            print("請輸入有效的數字", flush=True)
+
+
 def ensure_session(l: Instaloader) -> tuple[str, str]:
     """
     互動式建立或載入 session（含登入自動重試）。
@@ -69,16 +124,33 @@ def ensure_session(l: Instaloader) -> tuple[str, str]:
         sys.exit(1)
 
     print("=== IG Non-Followers (interactive, auto-retry) ===", flush=True)
-
-    username = input("Instagram 使用者名稱：").strip()
-    if not username:
-        print("[ERROR] 使用者名稱不可空白。", flush=True)
-        sys.exit(1)
-
+    
     data_dir = resolve_data_dir()
+    
+    # 檢查是否有現有的 sessions
+    existing_sessions = find_existing_sessions(data_dir)
+    
+    username = None
+    if existing_sessions:
+        # 有現有 sessions，讓用戶選擇
+        selected_username = choose_session(existing_sessions)
+        if selected_username:
+            username = selected_username
+            sess_path = session_path_for(username, data_dir)
+            l.load_session_from_file(username, sess_path)
+            print(f"[OK] 已載入 session：{sess_path}", flush=True)
+            return username, data_dir
+    
+    # 沒有選擇現有 session，進入登入流程
+    if not username:
+        username = input("Instagram 使用者名稱：").strip()
+        if not username:
+            print("[ERROR] 使用者名稱不可空白。", flush=True)
+            sys.exit(1)
+
     sess_path = session_path_for(username, data_dir)
 
-    # 已有 session → 直接載入
+    # 檢查是否已經有這個用戶的 session（如果是新輸入的用戶名）
     if os.path.exists(sess_path):
         l.load_session_from_file(username, sess_path)
         print(f"[OK] 已載入 session：{sess_path}", flush=True)
@@ -185,9 +257,17 @@ def write_csv(path: str, rows: Iterable[Tuple[str, str]]) -> None:
 
 
 def build_ts_csv_path(data_dir: str, base: str, username: str) -> str:
-    """建立含帳號與時間戳的 CSV 路徑，例如 base=username → username_<id>_YYYYMMDDHHMM.csv"""
-    ts = datetime.now().strftime("%Y%m%d%H%M")
-    return os.path.join(data_dir, f"{base}_{username}_{ts}.csv")
+    """建立含帳號與時間戳的 CSV 路徑，放在 IGID_YYYYMMDDHHMMSS 資料夾中"""
+    ts = datetime.now().strftime("%Y%m%d%H%M%S")
+    
+    # 建立以 IGID_YYYYMMDDHHMMSS 命名的資料夾
+    folder_name = f"{username}_{ts}"
+    result_dir = os.path.join(data_dir, folder_name)
+    os.makedirs(result_dir, exist_ok=True)
+    
+    # CSV 檔案名稱：base_YYYYMMDDHHMMSS.csv
+    filename = f"{base}_{ts}.csv"
+    return os.path.join(result_dir, filename)
 
 
 def main() -> None:

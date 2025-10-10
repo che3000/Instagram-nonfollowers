@@ -1872,6 +1872,14 @@ def stream():
             yield sse("UNLOCK_FORM")
             yield sse("ERROR:" + str(e))
             traceback.print_exc()
+        finally:
+            # 清理執行狀態，讓該帳號可以重新登入
+            try:
+                if username in RUNS:
+                    del RUNS[username]
+                    print(f"[DEBUG] 已清理 {username} 的執行狀態", flush=True)
+            except Exception as cleanup_error:
+                print(f"[DEBUG] 清理狀態時發生錯誤: {cleanup_error}", flush=True)
 
     return Response(run_and_stream(), mimetype="text/event-stream")
 

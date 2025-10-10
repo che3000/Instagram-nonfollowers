@@ -30,7 +30,7 @@ if command -v xdg-open > /dev/null; then
 fi
 
 set +e
-docker compose up --build ig-web
+docker compose -f docker/docker-compose.yml up --build ig-web
 CODE=$?
 set -e
 

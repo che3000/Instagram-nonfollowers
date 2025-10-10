@@ -9,7 +9,7 @@ mkdir -p data
 
 echo "[INFO] 啟動命令列版容器..."
 set +e
-docker compose run --rm ig-cli
+docker compose -f docker/docker-compose.yml run --rm ig-cli
 CODE=$?
 set -e
 

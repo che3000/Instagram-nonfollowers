@@ -27,6 +27,7 @@
 
 ### 1) 安裝 Docker Desktop
 - 下載安裝：https://www.docker.com/products/docker-desktop/
+- 專案安裝：https://github.com/che3000/Instagram-nonfollowers/releases
 
 —
 
@@ -42,7 +43,7 @@
   - Windows：雙擊 `run_docker_cli.bat`
   - macOS：雙擊 `run_docker_cli.command`
   - Linux：`bash run_docker_cli.sh`
-  - 注意：CLI 需要互動式終端機；若自行使用 docker 指令，請用 `docker compose run --rm ig-cli`
+  - 注意：CLI 需要互動式終端機；若自行使用 docker 指令，請用 `docker compose -f docker/docker-compose.yml run --rm ig-cli`
 
 這些腳本會自動檢查 Docker、建置映像、啟動容器，並把本機 `./data` 掛載到容器的 `/app/data`。
 
@@ -130,7 +131,11 @@
 安裝相依套件：
 
 ```bash
-python -m pip install -r requirements.txt
+# Web 版（包含所有功能）
+python -m pip install -r requirements-web.txt
+
+# CLI 版（最小相依套件）
+python -m pip install -r requirements-cli.txt
 ```
 
 - **啟動 Web 介面**：
@@ -156,12 +161,12 @@ python main.py
 ## ⚙️ 進階設定與環境變數
 - **Docker Compose 服務**：
   - `ig-web`：現代化 Web 介面，對外埠預設 `7860`（可用環境變數 `PORT` 覆蓋）
-  - `ig-cli`：互動式 CLI（`docker compose run --rm ig-cli`）
+  - `ig-cli`：互動式 CLI（`docker compose -f docker/docker-compose.yml run --rm ig-cli`）
 - **環境變數**：
   - `DATA_DIR`：資料存放目錄（預設 `./data`）
   - `TZ=Asia/Taipei`：時區設定（Docker 容器已預設台北時間）
 - **維護工具**：
-  - `rebuild_docker.bat`：重新建置 Docker 映像檔（當更新套件或設定時使用）
+  - 重新建置映像：`docker compose -f docker/docker-compose.yml build --no-cache`
 
 —
 
@@ -197,7 +202,7 @@ python main.py
 ### 🐳 **Docker 相關問題**
 - **時區顯示錯誤**：
   - Docker 容器已預設台北時間（TZ=Asia/Taipei）
-  - 如需重新建置：執行 `rebuild_docker.bat`
+  - 如需重新建置：`docker compose -f docker/docker-compose.yml build --no-cache`
 
 —
 
@@ -214,6 +219,7 @@ python main.py
 - **資料格式**：CSV (UTF-8 with BOM)
 - **圖表引擎**：Plotly.js 互動式圖表
 - **即時通訊**：Server-Sent Events (SSE)
+- **檔案結構**：Docker 相關檔案整理至 `docker/` 目錄，相依套件分離為 Web/CLI 版本
 
 —
 

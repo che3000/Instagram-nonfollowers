@@ -7,7 +7,7 @@ echo [INFO] 啟動 IG Non-Followers 命令列版本...
 echo [INFO] 建立/更新 Docker 映像中，請稍候。
 
 REM 啟動 CLI 服務（使用互動式終端機）
-docker compose run --rm ig-cli
+docker compose -f docker/docker-compose.yml run --rm ig-cli
 
 set "CODE=%ERRORLEVEL%"
 echo.

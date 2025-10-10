@@ -42,7 +42,7 @@ echo "[INFO] 建立並啟動 Web 容器中..."
 (sleep 5 && open "http://localhost:$PORT") &
 
 # 啟動 web 服務
-docker compose up --build ig-web
+docker compose -f docker/docker-compose.yml up --build ig-web
 
 EXIT_CODE=$?
 echo ""

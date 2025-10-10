@@ -1,7 +1,8 @@
 services:
   ig-web:
     build:
-      context: .
+      context: ..
+      dockerfile: docker/Dockerfile
       args:
         - MODE=web
     image: ig-nonfollowers:web
@@ -9,7 +10,7 @@ services:
     environment:
       - TZ=Asia/Taipei
     volumes:
-      - ./data:/app/data
+      - ../data:/app/data
       # 掛載本機時區資訊到容器（Windows 上可能不適用，主要依賴 TZ 環境變數）
       # - /etc/localtime:/etc/localtime:ro
       # - /etc/timezone:/etc/timezone:ro
@@ -18,7 +19,8 @@ services:
 
   ig-cli:
     build:
-      context: .
+      context: ..
+      dockerfile: docker/Dockerfile
       args:
         - MODE=cli
     image: ig-nonfollowers:cli
@@ -27,7 +29,7 @@ services:
     stdin_open: true  # 開啟標準輸入
     tty: true        # 分配偽終端機
     volumes:
-      - ./data:/app/data
+      - ../data:/app/data
       # 掛載本機時區資訊到容器（Windows 上可能不適用，主要依賴 TZ 環境變數）  
       # - /etc/localtime:/etc/localtime:ro
       # - /etc/timezone:/etc/timezone:ro

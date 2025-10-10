@@ -11,9 +11,16 @@ ENV PIP_NO_CACHE_DIR=1 \
 
 WORKDIR /app
 
-# 先安裝相依
-COPY requirements.txt ./
-RUN python -m pip install --no-cache-dir -r requirements.txt
+# 先複製所有 requirements 檔案
+COPY requirements-web.txt requirements-cli.txt ./
+
+# 根據 MODE 選擇性安裝相依
+ARG MODE=web
+RUN if [ "$MODE" = "cli" ]; then \
+    python -m pip install --no-cache-dir -r requirements-cli.txt; \
+    else \
+    python -m pip install --no-cache-dir -r requirements-web.txt; \
+    fi
 
 # 複製程式碼
 COPY main.py app.py ./
