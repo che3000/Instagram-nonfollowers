@@ -1587,7 +1587,8 @@ def stream():
                 else:
                     yield log_emit("[WARN] 無法設定自訂請求間隔，使用預設值")
             except Exception as e:
-                yield log_emit(f"[WARN] 設定請求間隔時發生錯誤: {e}")
+                print(f"[WARN] 設定請求間隔時發生錯誤: {e}", flush=True)  # 僅在伺服器端記錄詳細信息
+                yield log_emit("[WARN] 設定請求間隔時發生錯誤。已使用預設速率控制。")
                 # 繼續執行，使用預設的速率控制
 
             sess_path = os.path.join(DATA_DIR, f"session-{username}")
