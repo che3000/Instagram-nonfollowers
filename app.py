@@ -1917,7 +1917,8 @@ def stream():
                 return
 
             except exceptions.ConnectionException as e:
-                yield log_emit(f"[WARN] 連線錯誤：{e}")
+                print(f"[WARN] 連線錯誤：{e}", flush=True)
+                yield log_emit("[WARN] 連線錯誤，請稍後再試")
                 yield log_emit("[建議] 請檢查網路連線或稍後再試")
                 yield sse("ERROR:網路連線錯誤，請稍後再試")
                 return
