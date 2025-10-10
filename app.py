@@ -1342,7 +1342,11 @@ def read_existing_csv(folder_info: Optional[Dict[str, str]] = None) -> Optional[
         folder_name = folder_info["folder"]
         date_str = folder_info["date"]
         result_dir = os.path.join(DATA_DIR, folder_name)
-        
+        # 強化: 防止路徑逃逸
+        abs_result_dir = os.path.abspath(result_dir)
+        if not abs_result_dir.startswith(DATA_DIR):
+            print(f"資料夾越界! {abs_result_dir}")
+            return None
         if not os.path.exists(result_dir):
             print(f"結果資料夾不存在: {result_dir}")
             return None
@@ -1933,6 +1937,13 @@ def load_existing():
     
     folder_info = None
     if folder and igid and date:
+        # 驗證 folder 值：僅允許預期資料夾名稱格式（數字、字母、底線），防止路徑跳脫攻擊
+        import re
+        if not re.match(r"^[\w\-]+_\d{14}$", folder):
+            return {"ok": False, "error": "非法的資料夾名稱"}, 400
+        abs_path = os.path.abspath(os.path.join(DATA_DIR, folder))
+        if not abs_path.startswith(DATA_DIR):
+            return {"ok": False, "error": "路徑非法"}, 400
         folder_info = {"folder": folder, "igid": igid, "date": date}
     
     data = read_existing_csv(folder_info)
