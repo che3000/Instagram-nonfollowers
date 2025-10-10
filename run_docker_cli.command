@@ -1,11 +1,6 @@
 #!/bin/bash
 # ================================================
-# IG Non-Followers - macOS 一鍵執行版
-# 作者: 黃靖元 (Ching-Yuan Huang)
-# 說明:
-#   - 自動切換到腳本所在資料夾
-#   - 自動建立 / 執行 Docker Compose
-#   - 執行結束後暫停，方便使用者查看輸出
+# IG Non-Followers - macOS CLI 版本
 # ================================================
 
 # 切換到腳本所在目錄
@@ -26,17 +21,17 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[INFO] 建立並啟動容器中..."
-docker compose run --rm --build ig-nonfollowers
+echo "[INFO] 建立並啟動命令列容器中..."
+docker compose run --rm ig-cli
 
 EXIT_CODE=$?
 echo ""
 echo "==============================================="
 echo "[INFO] Container 結束，返回代碼: $EXIT_CODE"
 if [ $EXIT_CODE -eq 0 ]; then
-  echo "[OK] 執行完成，請在 data/ 資料夾中查看 CSV 檔。"
+    echo "[OK] 命令列版執行完成，請在 data/ 資料夾中查看 CSV 檔。"
 else
-  echo "[WARN] 執行中發生錯誤，請檢查上方訊息。"
+    echo "[WARN] 執行中發生錯誤，請檢查上方訊息。"
 fi
 echo "==============================================="
 

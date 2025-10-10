@@ -16,6 +16,7 @@ import time
 import getpass
 import traceback
 from typing import Iterable, List, Tuple, Set, Optional
+from datetime import datetime
 
 from instaloader import Instaloader, Profile, exceptions
 from tqdm import tqdm
@@ -183,6 +184,12 @@ def write_csv(path: str, rows: Iterable[Tuple[str, str]]) -> None:
             w.writerow([username, full_name, f"https://instagram.com/{username}"])
 
 
+def build_ts_csv_path(data_dir: str, base: str, username: str) -> str:
+    """建立含帳號與時間戳的 CSV 路徑，例如 base=username → username_<id>_YYYYMMDDHHMM.csv"""
+    ts = datetime.now().strftime("%Y%m%d%H%M")
+    return os.path.join(data_dir, f"{base}_{username}_{ts}.csv")
+
+
 def main() -> None:
     L = Instaloader()
     L.context.sleep = True
@@ -209,6 +216,7 @@ def main() -> None:
     # 對方追你但你沒回追
     fans_you_dont_follow = [(u, n) for (u, n) in followers_users if u not in following_usernames]
 
+    # 原固定檔名（相容）
     nf_path = os.path.join(data_dir, OUTPUT_NON_FOLLOWERS)
     fnf_path = os.path.join(data_dir, OUTPUT_FANS_NOT_FOLLOWED)
 
@@ -216,12 +224,28 @@ def main() -> None:
     write_csv(nf_path, non_followers)
     write_csv(fnf_path, fans_you_dont_follow)
 
+    # 另外輸出四份含帳號與時間戳的 CSV
+    following_ts_path = build_ts_csv_path(data_dir, "following_users", username)
+    followers_ts_path = build_ts_csv_path(data_dir, "followers_users", username)
+    nf_ts_path = build_ts_csv_path(data_dir, "non_followers", username)
+    fy_ts_path = build_ts_csv_path(data_dir, "fans_you_dont_follow", username)
+
+    write_csv(following_ts_path, following_users)
+    write_csv(followers_ts_path, followers_users)
+    write_csv(nf_ts_path, non_followers)
+    write_csv(fy_ts_path, fans_you_dont_follow)
+
     print("\n=== 完成！===", flush=True)
     print(f"使用者：{username}", flush=True)
     print(f"following 總數：{len(following_usernames)}", flush=True)
     print(f"followers 總數：{len(followers_usernames)}", flush=True)
     print(f"你追但沒回追：{len(non_followers)} → {nf_path}", flush=True)
     print(f"他人追你但你沒回追：{len(fans_you_dont_follow)} → {fnf_path}", flush=True)
+    print("— 另已輸出含帳號與時間戳的四份 CSV：", flush=True)
+    print(f"following_users → {following_ts_path}", flush=True)
+    print(f"followers_users → {followers_ts_path}", flush=True)
+    print(f"non_followers → {nf_ts_path}", flush=True)
+    print(f"fans_you_dont_follow → {fy_ts_path}", flush=True)
 
 
 if __name__ == "__main__":

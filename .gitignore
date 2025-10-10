@@ -14,10 +14,10 @@ Instaloader/
 
 # Local outputs
 *.csv
-*.txt
 output/
 downloads/
 data/
+trash/
 
 # Docker / build artifacts
 /dist/

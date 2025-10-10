@@ -1,0 +1,6 @@
+flask>=3.0
+instaloader==4.14.2
+tqdm>=4.66
+gunicorn>=21.2.0
+matplotlib>=3.7.0
+plotly>=5.15.0
