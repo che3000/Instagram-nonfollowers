@@ -1633,7 +1633,8 @@ def stream():
                             break
                         except exceptions.LoginException as e2:
                             # 2FA 錯誤 → 不解鎖帳號（通常重輸 2FA）
-                            yield log_emit(f"[WARN] 2FA 驗證失敗：{e2}，請重新輸入。")
+                            print(f"[WARN] 2FA 驗證失敗: {e2}", flush=True)  # log to server
+                            yield log_emit("[WARN] 2FA 驗證失敗，請重新輸入。")
                             continue
                     except exceptions.BadCredentialsException as e:
                         # 密碼錯誤 → 解鎖表單讓使用者重填
@@ -1880,7 +1881,7 @@ def stream():
         except Exception as e:
             # 未預期錯誤 → 解鎖表單
             yield sse("UNLOCK_FORM")
-            yield sse("ERROR:" + str(e))
+            yield sse("ERROR:發生未預期錯誤，請稍後再試或聯絡管理員。")
             traceback.print_exc()
         finally:
             # 清理執行狀態，讓該帳號可以重新登入
