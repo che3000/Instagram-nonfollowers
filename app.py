@@ -10,6 +10,7 @@ Includes session management, rate limiting, and result caching.
 # pylint: disable=too-many-lines
 from __future__ import annotations
 import os
+import sys
 import csv
 import time
 import traceback
@@ -234,7 +235,7 @@ HTML = """
         <div id="single-session" style="display: none;">
           <p>要使用已存在的登入資訊嗎？帳號：<strong id="existing-username"></strong></p>
           <div class="row" style="display:flex;align-items:center;gap:8px;margin:12px 0;">
-            <input id="session_fetch_avatar" name="session_fetch_avatar" type="checkbox" checked>
+            <input id="session_fetch_avatar" name="session_fetch_avatar" type="checkbox">
             <label for="session_fetch_avatar" style="margin:0;">下載頭像（小尺寸版本，可能增加耗時與 API 次數）</label>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -246,7 +247,7 @@ HTML = """
         <div id="multiple-sessions" style="display: none;">
           <p>找到多個已登入帳號，請選擇要使用的帳號：</p>
           <div class="row" style="display:flex;align-items:center;gap:8px;margin:12px 0;">
-            <input id="multi_session_fetch_avatar" name="multi_session_fetch_avatar" type="checkbox" checked>
+            <input id="multi_session_fetch_avatar" name="multi_session_fetch_avatar" type="checkbox">
             <label for="multi_session_fetch_avatar" style="margin:0;">下載頭像（小尺寸版本，可能增加耗時與 API 次數）</label>
           </div>
           <div style="max-height: 250px; overflow-y: auto; margin: 12px 0;">
@@ -271,7 +272,7 @@ HTML = """
           <input id="password" name="password" type="password" placeholder="••••••••" required>
         </div>
         <div class="row" style="display:flex;align-items:center;gap:8px;">
-          <input id="fetch_avatar" name="fetch_avatar" type="checkbox" checked>
+          <input id="fetch_avatar" name="fetch_avatar" type="checkbox">
           <label for="fetch_avatar" style="margin:0;">下載頭像（小尺寸版本，可能增加耗時與 API 次數）</label>
         </div>
         <div class="row">
@@ -1257,18 +1258,24 @@ def fetch_users_with_progress(iterable, total: Optional[int], label: str,
         except StopIteration:
             break
         except exceptions.TooManyRequestsException as e:
-            msg = str(e) or "Too many requests"
-            # 動態調整等待時間，如果持續收到 429，增加等待時間
+            # 記錄詳細錯誤到伺服器端
+            print(f"[RATE-LIMIT] Instagram API 限制：{e}", file=sys.stderr)
+            # 動態調整等待時間,如果持續收到 429,增加等待時間
             if retry > 3:
                 rate_sleep = min(300, rate_sleep * 1.5)  # 最多等待 5 分鐘
-            yield log_emit(f"[RATE-LIMIT] {msg}；將等待 {int(rate_sleep)}s 後重試…（第 {retry + 1} 次）")
+            yield log_emit(
+                f"[RATE-LIMIT] Instagram API 請求限制；"
+                f"將等待 {int(rate_sleep)}s 後重試…（第 {retry + 1} 次）"
+            )
             time.sleep(rate_sleep)
             retry += 1
             continue
         except exceptions.ConnectionException as e:
+            # 記錄詳細錯誤到伺服器端
+            print(f"[WARN] 連線錯誤：{e}", file=sys.stderr)
             # 指數退避，最多 backoff_cap 秒
             wait = min(backoff_cap, (2 ** retry) * 3 if retry > 0 else 3)
-            yield log_emit(f"[WARN] 連線錯誤：{e}；{wait}s 後重試（第 {retry + 1} 次）…")
+            yield log_emit(f"[WARN] 連線錯誤；{wait}s 後重試（第 {retry + 1} 次）…")
             time.sleep(wait)
             retry += 1
             continue
@@ -1280,12 +1287,13 @@ def fetch_users_with_progress(iterable, total: Optional[int], label: str,
                 'deleted', 'suspended', 'blocked', 'invalid'
             ]):
                 # 可跳過的錯誤，記錄並繼續
-                yield log_emit(f"[SKIP] 跳過無法存取的帳號：{error_msg}")
+                yield log_emit("[SKIP] 跳過無法存取的帳號")
                 continue
             else:
-                # 嚴重錯誤 → 傳回前端並中止此階段
-                yield sse("ERROR:" + str(e))
+                # 嚴重錯誤 → 記錄到伺服器端，傳回通用訊息給前端
+                print(f"[ERROR] 獲取用戶資料時發生錯誤：{e}", file=sys.stderr)
                 traceback.print_exc()
+                yield sse("ERROR:獲取用戶資料時發生錯誤，請稍後再試")
                 return users_pairs, users_objs
 
     # 完成時先顯示100%進度，再顯示完成訊息
@@ -1894,8 +1902,9 @@ def stream():
 
             except exceptions.TooManyRequestsException as e:
                 error_msg = str(e) if str(e) else "Instagram API 請求限制"
-                print(f"[RATE-LIMIT][DEBUG] {error_msg}", flush=True)  # log full error server-side
-                yield log_emit("[RATE-LIMIT] Instagram API 請求限制，請稍後再試")  # generic message for client
+                # log full error server-side
+                print(f"[RATE-LIMIT][DEBUG] {error_msg}", flush=True)
+                yield log_emit("[RATE-LIMIT] Instagram API 請求限制，請稍後再試")
 
                 # 嘗試從錯誤訊息中提取等待時間
                 import re  # pylint: disable=import-outside-toplevel
@@ -1932,8 +1941,10 @@ def stream():
                 return
 
             except Exception as e:  # pylint: disable=broad-except
-                yield log_emit(f"[ERROR] 無法取得用戶資料：{e}")
-                yield log_emit(f"[DEBUG] 錯誤類型：{type(e).__name__}")
+                # 記錄詳細錯誤到伺服器端
+                print(f"[ERROR] 無法取得用戶資料：{e}", file=sys.stderr)
+                print(f"[DEBUG] 錯誤類型：{type(e).__name__}", file=sys.stderr)
+                print(traceback.format_exc(), file=sys.stderr)
 
                 # 檢查錯誤訊息中是否包含 429 相關資訊
                 error_str = str(e).lower()
@@ -1942,8 +1953,8 @@ def stream():
                     yield log_emit("[建議] 請等待 15-30 分鐘後再試，並確保沒有同時使用 Instagram App")
                     yield sse("ERROR:Instagram API 請求限制，請稍後再試")
                 else:
-                    yield log_emit(f"[DEBUG] 詳細錯誤：{traceback.format_exc()}")
-                    yield sse("ERROR:" + str(e))
+                    # 傳送通用錯誤訊息給前端
+                    yield sse("ERROR:無法取得用戶資料，請稍後再試")
                 return
 
             # following
@@ -1957,8 +1968,9 @@ def stream():
                     )
                 )
             except Exception as e:  # pylint: disable=broad-except
-                yield log_emit(f"[ERROR] 取得追蹤中列表時發生錯誤：{e}")
-                yield sse("ERROR:" + str(e))
+                print(f"[ERROR] 取得追蹤中列表時發生錯誤：{e}", file=sys.stderr)
+                traceback.print_exc()
+                yield sse("ERROR:取得追蹤中列表時發生錯誤，請稍後再試")
                 return
 
             # followers
@@ -1972,8 +1984,9 @@ def stream():
                     )
                 )
             except Exception as e:  # pylint: disable=broad-except
-                yield log_emit(f"[ERROR] 取得追蹤者列表時發生錯誤：{e}")
-                yield sse("ERROR:" + str(e))
+                print(f"[ERROR] 取得追蹤者列表時發生錯誤：{e}", file=sys.stderr)
+                traceback.print_exc()
+                yield sse("ERROR:取得追蹤者列表時發生錯誤，請稍後再試")
                 return
 
             following_set: Set[str] = {u for u, _ in following_pairs}
@@ -2108,7 +2121,9 @@ def get_folders():
         folders = find_all_result_folders()
         return {"ok": True, "folders": folders}
     except (OSError, ValueError) as e:  # More specific exceptions
-        return {"ok": False, "error": str(e)}
+        print(f"[ERROR] 讀取資料夾時發生錯誤：{e}", file=sys.stderr)
+        traceback.print_exc()
+        return {"ok": False, "error": "無法讀取資料夾，請稍後再試"}
 
 
 @APP.get("/load-existing")
