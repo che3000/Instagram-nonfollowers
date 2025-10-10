@@ -1894,7 +1894,8 @@ def stream():
 
             except exceptions.TooManyRequestsException as e:
                 error_msg = str(e) if str(e) else "Instagram API 請求限制"
-                yield log_emit(f"[RATE-LIMIT] {error_msg}")
+                print(f"[RATE-LIMIT][DEBUG] {error_msg}", flush=True)  # log full error server-side
+                yield log_emit("[RATE-LIMIT] Instagram API 請求限制，請稍後再試")  # generic message for client
 
                 # 嘗試從錯誤訊息中提取等待時間
                 import re  # pylint: disable=import-outside-toplevel
