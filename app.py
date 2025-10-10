@@ -1375,13 +1375,18 @@ def read_existing_csv(folder_info: Optional[Dict[str, str]] = None) -> Optional[
                 return
                 
             file_path = os.path.join(result_dir, filename)
-            if not os.path.exists(file_path):
-                print(f"檔案不存在: {file_path}")
+            abs_file_path = os.path.abspath(file_path)
+            # 防止路徑逃逸: 確保檔案在 DATA_DIR 內
+            if not abs_file_path.startswith(DATA_DIR):
+                print(f"檔案越界! {abs_file_path}")
                 return
-                
+            if not os.path.exists(abs_file_path):
+                print(f"檔案不存在: {abs_file_path}")
+                return
+
             chosen_files[file_key] = os.path.join(folder_name, filename)
             
-            with open(file_path, "r", encoding="utf-8-sig") as f:
+            with open(abs_file_path, "r", encoding="utf-8-sig") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     result[result_key].append({
