@@ -1924,7 +1924,9 @@ def stream():
                 return
 
             except exceptions.LoginException as e:
-                yield log_emit(f"[ERROR] 登入問題：{e}")
+                print(f"[ERROR] 登入問題：{e}", flush=True)
+                print(traceback.format_exc(), flush=True)
+                yield log_emit("[ERROR] 登入問題")
                 yield log_emit("[建議] Session 可能已過期，請重新登入")
                 yield sse("ERROR:登入問題，請重新登入")
                 return
