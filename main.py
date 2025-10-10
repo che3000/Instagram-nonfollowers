@@ -30,28 +30,31 @@ OUTPUT_FANS_NOT_FOLLOWED = "fans_you_dont_follow.csv"
 
 
 def is_tty() -> bool:
+    """檢查當前是否在互動式終端環境中。"""
     try:
         return sys.stdin.isatty()
-    except Exception:
+    except (AttributeError, OSError):
         return False
 
 
 def get_project_root() -> str:
+    """取得專案根目錄路徑。"""
     return os.path.dirname(os.path.abspath(__file__))
 
 
 def resolve_data_dir() -> str:
     """優先 /app/data（Docker 掛載），其次 ./data，否則建立 ./data。"""
     candidates = ["/app/data", os.path.join(get_project_root(), "data")]
-    for p in candidates:
-        if os.path.isdir(p):
-            return p
-    p = os.path.join(get_project_root(), "data")
-    os.makedirs(p, exist_ok=True)
-    return p
+    for path in candidates:
+        if os.path.isdir(path):
+            return path
+    path = os.path.join(get_project_root(), "data")
+    os.makedirs(path, exist_ok=True)
+    return path
 
 
 def session_path_for(username: str, data_dir: str) -> str:
+    """為指定使用者名稱建立 session 檔案路徑。"""
     return os.path.join(data_dir, f"session-{username}")
 
 
@@ -61,24 +64,26 @@ def find_existing_sessions(data_dir: str) -> List[Tuple[str, str, str]]:
     回傳: [(username, session_file, last_used_time)]
     """
     sessions = []
-    
+
     if not os.path.exists(data_dir):
         return sessions
-    
+
     for filename in os.listdir(data_dir):
         if filename.startswith("session-") and os.path.isfile(os.path.join(data_dir, filename)):
             username = filename[8:]  # 移除 "session-" 前綴
             session_path = os.path.join(data_dir, filename)
-            
+
             # 檢查檔案大小，確保不是空檔案
             if os.path.getsize(session_path) > 0:
                 # 獲取最後修改時間
                 mtime = os.path.getmtime(session_path)
-                last_used = datetime.fromtimestamp(mtime).strftime('%Y年%m月%d日 %H:%M')
+                last_used = datetime.fromtimestamp(
+                    mtime).strftime('%Y年%m月%d日 %H:%M')
                 sessions.append((username, filename, last_used))
-    
+
     # 按最後使用時間排序，最新的在前面
-    sessions.sort(key=lambda x: os.path.getmtime(os.path.join(data_dir, x[1])), reverse=True)
+    sessions.sort(key=lambda x: os.path.getmtime(
+        os.path.join(data_dir, x[1])), reverse=True)
     return sessions
 
 
@@ -89,16 +94,16 @@ def choose_session(sessions: List[Tuple[str, str, str]]) -> Optional[str]:
     """
     print("\n=== 發現已存在的登入狀態 ===", flush=True)
     print("0. 不使用現有登入狀態（重新登入）", flush=True)
-    
+
     for i, (username, _, last_used) in enumerate(sessions, 1):
         print(f"{i}. {username} (最後使用：{last_used})", flush=True)
-    
+
     while True:
         try:
             choice = input(f"\n請選擇 (0-{len(sessions)}): ").strip()
             if not choice:
                 continue
-                
+
             choice_num = int(choice)
             if choice_num == 0:
                 return None
@@ -110,7 +115,7 @@ def choose_session(sessions: List[Tuple[str, str, str]]) -> Optional[str]:
             print("請輸入有效的數字", flush=True)
 
 
-def ensure_session(l: Instaloader) -> tuple[str, str]:
+def ensure_session(loader: Instaloader) -> tuple[str, str]:
     """
     互動式建立或載入 session（含登入自動重試）。
     回傳: (username, data_dir)
@@ -124,12 +129,12 @@ def ensure_session(l: Instaloader) -> tuple[str, str]:
         sys.exit(1)
 
     print("=== IG Non-Followers (interactive, auto-retry) ===", flush=True)
-    
+
     data_dir = resolve_data_dir()
-    
+
     # 檢查是否有現有的 sessions
     existing_sessions = find_existing_sessions(data_dir)
-    
+
     username = None
     if existing_sessions:
         # 有現有 sessions，讓用戶選擇
@@ -137,10 +142,10 @@ def ensure_session(l: Instaloader) -> tuple[str, str]:
         if selected_username:
             username = selected_username
             sess_path = session_path_for(username, data_dir)
-            l.load_session_from_file(username, sess_path)
+            loader.load_session_from_file(username, sess_path)
             print(f"[OK] 已載入 session：{sess_path}", flush=True)
             return username, data_dir
-    
+
     # 沒有選擇現有 session，進入登入流程
     if not username:
         username = input("Instagram 使用者名稱：").strip()
@@ -152,7 +157,7 @@ def ensure_session(l: Instaloader) -> tuple[str, str]:
 
     # 檢查是否已經有這個用戶的 session（如果是新輸入的用戶名）
     if os.path.exists(sess_path):
-        l.load_session_from_file(username, sess_path)
+        loader.load_session_from_file(username, sess_path)
         print(f"[OK] 已載入 session：{sess_path}", flush=True)
         return username, data_dir
 
@@ -162,9 +167,9 @@ def ensure_session(l: Instaloader) -> tuple[str, str]:
         password = getpass.getpass("Instagram 密碼（輸入不會顯示）：")
 
         try:
-            l.login(username, password)
+            loader.login(username, password)
             os.makedirs(data_dir, exist_ok=True)
-            l.save_session_to_file(sess_path)
+            loader.save_session_to_file(sess_path)
             print(f"[OK] 已登入並儲存 session：{sess_path}", flush=True)
             return username, data_dir
 
@@ -178,9 +183,9 @@ def ensure_session(l: Instaloader) -> tuple[str, str]:
                 )
                 code = input(f"請輸入備用驗證碼（第 {attempt}/3 次）：").strip()
                 try:
-                    l.two_factor_login(code)
+                    loader.two_factor_login(code)
                     os.makedirs(data_dir, exist_ok=True)
-                    l.save_session_to_file(sess_path)
+                    loader.save_session_to_file(sess_path)
                     print(f"[OK] 2FA 成功，已儲存 session：{sess_path}", flush=True)
                     return username, data_dir
                 except exceptions.LoginException as e2:
@@ -208,7 +213,9 @@ def ensure_session(l: Instaloader) -> tuple[str, str]:
                 sys.exit(1)
 
 
-def fetch_users_with_progress(it: Iterable, total: Optional[int], label: str) -> List[Tuple[str, str]]:
+def fetch_users_with_progress(
+    it: Iterable, total: Optional[int], label: str
+) -> List[Tuple[str, str]]:
     """
     逐步迭代名單，顯示進度條，並回傳 [(username, full_name)]。
     """
@@ -238,63 +245,100 @@ def fetch_users_with_progress(it: Iterable, total: Optional[int], label: str) ->
                 continue
             else:
                 pbar.close()
-                raise RuntimeError(f"Reach max retries due to connection errors: {e}")
-        except Exception as e:
+                raise RuntimeError(
+                    f"Reach max retries due to connection errors: {e}"
+                ) from e
+        except Exception:
             pbar.close()
-            raise e
+            raise
 
     pbar.close()
     return users
 
 
 def write_csv(path: str, rows: Iterable[Tuple[str, str]]) -> None:
+    """
+    Writes Instagram user data to a CSV file with UTF-8 BOM encoding for Excel compatibility.
+
+    Args:
+        path (str): The file path to write the CSV to.
+        rows (Iterable[Tuple[str, str]]): An iterable of tuples containing (username, full_name).
+
+    The CSV will have columns: 'username', 'full_name', and 'profile_url'.
+    """
     # 重點：用 utf-8-sig（含 BOM）讓 Windows Excel 正確辨識中文
     with open(path, "w", newline="", encoding="utf-8-sig", errors="replace") as f:
         w = csv.writer(f)
         w.writerow(["username", "full_name", "profile_url"])
         for username, full_name in rows:
-            w.writerow([username, full_name, f"https://instagram.com/{username}"])
+            w.writerow(
+                [username, full_name, f"https://instagram.com/{username}"])
 
 
 def build_ts_csv_path(data_dir: str, base: str, username: str) -> str:
     """建立含帳號與時間戳的 CSV 路徑，放在 IGID_YYYYMMDDHHMMSS 資料夾中"""
     ts = datetime.now().strftime("%Y%m%d%H%M%S")
-    
+
     # 建立以 IGID_YYYYMMDDHHMMSS 命名的資料夾
     folder_name = f"{username}_{ts}"
     result_dir = os.path.join(data_dir, folder_name)
     os.makedirs(result_dir, exist_ok=True)
-    
+
     # CSV 檔案名稱：base_YYYYMMDDHHMMSS.csv
     filename = f"{base}_{ts}.csv"
     return os.path.join(result_dir, filename)
 
 
 def main() -> None:
-    L = Instaloader()
-    L.context.sleep = True
-    L.context.request_timeout = 90
+    """
+    Main entry point for the Instagram follower analysis tool.
+    This function performs the following operations:
+    1. Initializes an Instaloader instance with session management
+    2. Retrieves the user's following list (people the user follows)
+    3. Retrieves the user's followers list (people who follow the user)
+    4. Calculates the difference between following and followers to identify:
+        - Non-followers: users you follow but who don't follow you back
+        - Fans you don't follow: users who follow you but you don't follow back
+    5. Outputs results to CSV files in two formats:
+        - Fixed filename CSVs for backward compatibility
+        - Timestamped CSVs with username for historical tracking
+    Returns:
+         None
+    Raises:
+         InstaloaderException: If there are issues with Instagram API requests
+         IOError: If there are problems writing CSV files
+    Note:
+         This function requires an authenticated Instagram session managed by ensure_session().
+         All CSV outputs are saved to the data directory associated with the session.
+    """
+    loader = Instaloader()
+    loader.context.sleep = True
+    loader.context.request_timeout = 90
 
-    username, data_dir = ensure_session(L)
-    profile = Profile.from_username(L.context, username)
+    username, data_dir = ensure_session(loader)
+    profile = Profile.from_username(loader.context, username)
 
     total_following = getattr(profile, "followees", None)
     total_followers = getattr(profile, "followers", None)
 
     print("[1/4] 取得 following（你追的人）…", flush=True)
-    following_users = fetch_users_with_progress(profile.get_followees(), total_following, "following")
+    following_users = fetch_users_with_progress(
+        profile.get_followees(), total_following, "following")
 
     print("[2/4] 取得 followers（追你的人）…", flush=True)
-    followers_users = fetch_users_with_progress(profile.get_followers(), total_followers, "followers")
+    followers_users = fetch_users_with_progress(
+        profile.get_followers(), total_followers, "followers")
 
     print("[3/4] 計算集合差集…", flush=True)
     following_usernames: Set[str] = {u for u, _ in following_users}
     followers_usernames: Set[str] = {u for u, _ in followers_users}
 
     # 你追但對方沒回追
-    non_followers = [(u, n) for (u, n) in following_users if u not in followers_usernames]
+    non_followers = [(u, n)
+                     for (u, n) in following_users if u not in followers_usernames]
     # 對方追你但你沒回追
-    fans_you_dont_follow = [(u, n) for (u, n) in followers_users if u not in following_usernames]
+    fans_you_dont_follow = [(u, n) for (
+        u, n) in followers_users if u not in following_usernames]
 
     # 原固定檔名（相容）
     nf_path = os.path.join(data_dir, OUTPUT_NON_FOLLOWERS)
@@ -305,8 +349,10 @@ def main() -> None:
     write_csv(fnf_path, fans_you_dont_follow)
 
     # 另外輸出四份含帳號與時間戳的 CSV
-    following_ts_path = build_ts_csv_path(data_dir, "following_users", username)
-    followers_ts_path = build_ts_csv_path(data_dir, "followers_users", username)
+    following_ts_path = build_ts_csv_path(
+        data_dir, "following_users", username)
+    followers_ts_path = build_ts_csv_path(
+        data_dir, "followers_users", username)
     nf_ts_path = build_ts_csv_path(data_dir, "non_followers", username)
     fy_ts_path = build_ts_csv_path(data_dir, "fans_you_dont_follow", username)
 
@@ -333,7 +379,14 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\n[INFO] 使用者中斷。", flush=True)
-    except Exception as e:
-        print("\n[ERROR] 發生未預期錯誤：", e, flush=True)
+    except (OSError, IOError) as e:
+        print(f"\n[ERROR] 檔案系統錯誤：{e}", flush=True)
+        sys.exit(1)
+    except ImportError as e:
+        print(f"\n[ERROR] 模組導入錯誤：{e}", flush=True)
+        print("請確認已安裝所需的套件：pip install -r requirements.txt", flush=True)
+        sys.exit(1)
+    except Exception as e:  # pylint: disable=broad-except
+        print(f"\n[ERROR] 發生未預期錯誤：{e}", flush=True)
         traceback.print_exc()
         sys.exit(1)
