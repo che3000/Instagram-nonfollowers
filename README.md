@@ -28,7 +28,8 @@
 ### 1) 安裝 Docker Desktop
 - 下載安裝：https://www.docker.com/products/docker-desktop/
 - 專案安裝：https://github.com/che3000/Instagram-nonfollowers/releases
-
+依照裝置版本選擇Docker版本
+![image](/readme_picture/1.png)
 —
 
 ### 2) 執行方式
@@ -38,6 +39,7 @@
   - Linux：`bash run_docker_web.sh`
   - 預設網址 `http://localhost:7860`；若 7860 已被占用，腳本會詢問改用其他 Port。
   - macOS/Linux 首次執行若無權限：`chmod +x run_docker_*.command run_docker_*.sh`
+  ![image](/readme_picture/3.png)
 
 - 指令列 CLI：
   - Windows：雙擊 `run_docker_cli.bat`
@@ -46,6 +48,7 @@
   - 注意：CLI 需要互動式終端機；若自行使用 docker 指令，請用 `docker compose -f docker/docker-compose.yml run --rm ig-cli`
 
 這些腳本會自動檢查 Docker、建置映像、啟動容器，並把本機 `./data` 掛載到容器的 `/app/data`。
+![image](/readme_picture/2.png)
 
 —
 
@@ -53,11 +56,12 @@
 - 依提示輸入 Instagram 帳號與密碼
 - 若需要會再輸入 2FA 驗證碼
 - 之後會建立 `data/session-<username>`，下次可免輸入密碼
+![image](/readme_picture/3.png)
 
 —
 
 ### 4) 輸出結果與檔案位置
-請至 `data/` 資料夾查看。
+ `data/` 資料夾會產生四份csv，網頁上也會根據csv產生及時結果。
 
 - **共同檔案**
   - `session-<username>`：已登入的 Session（後續可重用）
