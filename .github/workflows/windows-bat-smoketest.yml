@@ -1,4 +1,6 @@
 name: Windows Smoke Test (.bat + Docker)
+permissions:
+  contents: read
 
 on:
   pull_request:
