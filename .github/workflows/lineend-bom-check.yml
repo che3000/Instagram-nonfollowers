@@ -1,4 +1,6 @@
 name: Check CRLF & No-BOM for .bat/.cmd
+permissions:
+  contents: read
 
 on: [push, pull_request]
 
