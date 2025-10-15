@@ -1,0 +1,21 @@
+name: Windows Smoke Test (.bat + Docker)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker version
+        run: |
+          docker -v
+          docker compose version
+        shell: cmd
+
+      - name: Build web service via compose (no up)
+        run: docker compose -f docker\docker-compose.yml build ig-web
+        shell: cmd
