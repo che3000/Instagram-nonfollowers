@@ -1,0 +1,20 @@
+name: Docker Build (compose)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ig-web
+        run: docker compose -f docker/docker-compose.yml build ig-web
+
+      - name: Build ig-cli
+        run: docker compose -f docker/docker-compose.yml build ig-cli
