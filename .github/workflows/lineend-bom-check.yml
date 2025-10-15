@@ -1,0 +1,28 @@
+name: Check CRLF & No-BOM for .bat/.cmd
+
+on: [push, pull_request]
+
+jobs:
+  check-windows-text:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify .bat/.cmd are UTF-8 (no BOM) and CRLF
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem -Recurse -Include *.bat,*.cmd | ForEach-Object {
+            $p = $_.FullName
+            $bytes = [System.IO.File]::ReadAllBytes($p)
+            if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+              Write-Host "::error file=$p::Has UTF-8 BOM"
+              $failed = $true
+            }
+            $text = Get-Content $p -Raw
+            if (-not ($text -match "`r`n")) {
+              Write-Host "::error file=$p::Not CRLF line endings"
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
